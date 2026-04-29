@@ -202,6 +202,23 @@ async function createFreshConnection(config?: ConnectionConfig): Promise<Connect
       });
 
       return conn;
+    } else if (connectionType === ConnectionType.Access_Token) {
+      // Direct OAuth access token authentication
+      const accessToken = process.env.SALESFORCE_ACCESS_TOKEN;
+      const instanceUrl = process.env.SALESFORCE_INSTANCE_URL || config?.loginUrl;
+
+      if (!accessToken || !instanceUrl) {
+        throw new Error('SALESFORCE_ACCESS_TOKEN and SALESFORCE_INSTANCE_URL are required for Access_Token authentication');
+      }
+
+      console.error(`Connecting to Salesforce using direct access token at ${instanceUrl}`);
+
+      const conn = new jsforce.Connection({
+        instanceUrl,
+        accessToken,
+      });
+
+      return conn;
     } else if (connectionType === ConnectionType.Salesforce_CLI) {
       console.error('Connecting to Salesforce using Salesforce CLI authentication');
 
