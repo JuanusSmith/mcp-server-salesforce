@@ -51,10 +51,13 @@ export async function getSalesforceOrgInfo(
       stdout = 'stdout' in err ? err.stdout || '' : '';
     }
 
-    // Parse JSON — log redacted version only
+    // Parse JSON — strip any warning lines SF CLI prints before the JSON blob
+    const jsonStart = stdout.indexOf('{');
+    const cleanedStdout = jsonStart >= 0 ? stdout.slice(jsonStart) : stdout;
+
     let response: SalesforceCLIResponse;
     try {
-      response = JSON.parse(stdout);
+      response = JSON.parse(cleanedStdout);
     } catch (parseErr) {
       throw new Error('Failed to parse Salesforce CLI output. Ensure sf CLI is installed and configured correctly.');
     }
