@@ -12,13 +12,27 @@ const execFileAsync = promisify(execFile);
 const CONNECTION_TIMEOUT = 60000; // 60 seconds for API calls
 const OAUTH_TIMEOUT = 30000; // 30 seconds for OAuth token request
 
-/**
- * Executes the Salesforce CLI command to get org information
- * @returns Parsed response from sf org display --json command
- */
+function resolveSfExecutable(): string {
+  // On Windows, sf may not be in the PATH inherited by Claude Desktop.
+  // Try common install locations before falling back to bare 'sf'.
+  if (process.platform === 'win32') {
+    const candidates = [
+      process.env.SF_CLI_PATH,
+      'C:\\Program Files\\sf\\bin\\sf.cmd',
+      'C:\\Program Files (x86)\\sf\\bin\\sf.cmd',
+    ].filter(Boolean) as string[];
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    for (const candidate of candidates) {
+      try { if (fs.existsSync(candidate)) return candidate; } catch {}
+    }
+  }
+  return 'sf';
+}
+
 export async function getSalesforceOrgInfo(
   execSfOrgDisplay: () => Promise<{ stdout: string; stderr: string }> = () =>
-    execFileAsync('sf', ['org', 'display', '--json'])
+    execFileAsync(resolveSfExecutable(), ['org', 'display', '--json'], { shell: process.platform === 'win32' })
 ): Promise<SalesforceCLIResponse> {
   try {
     console.error(`Executing Salesforce CLI: sf org display --json`);
