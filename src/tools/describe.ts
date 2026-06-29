@@ -1,5 +1,6 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { SalesforceField, SalesforceDescribeResponse } from "../types/salesforce";
+import { SalesforceField, SalesforceDescribeResponse } from "../types/salesforce.js";
+import { validateIdentifier } from "../utils/sanitize.js";
 
 export const DESCRIBE_OBJECT: Tool = {
   name: "salesforce_describe_object",
@@ -17,10 +18,19 @@ export const DESCRIBE_OBJECT: Tool = {
 };
 
 export async function handleDescribeObject(conn: any, objectName: string) {
-  const describe = await conn.describe(objectName) as SalesforceDescribeResponse;
-  
-  // Format the output
-  const formattedDescription = `
+  const objValidation = validateIdentifier(objectName);
+  if (!objValidation.valid) {
+    return {
+      content: [{ type: "text", text: objValidation.error! }],
+      isError: true,
+    };
+  }
+
+  try {
+    const describe = await conn.describe(objectName) as SalesforceDescribeResponse;
+
+    // Format the output
+    const formattedDescription = `
 Object: ${describe.name} (${describe.label})${describe.custom ? ' (Custom Object)' : ''}
 Fields:
 ${describe.fields.map((field: SalesforceField) => `  - ${field.name} (${field.label})
@@ -28,13 +38,23 @@ ${describe.fields.map((field: SalesforceField) => `  - ${field.name} (${field.la
     Required: ${!field.nillable}
     ${field.referenceTo && field.referenceTo.length > 0 ? `References: ${field.referenceTo.join(', ')}` : ''}
     ${field.picklistValues && field.picklistValues.length > 0 ? `Picklist Values: ${field.picklistValues.map((v: { value: string }) => v.value).join(', ')}` : ''}`
-  ).join('\n')}`;
+    ).join('\n')}`;
 
-  return {
-    content: [{
-      type: "text",
-      text: formattedDescription
-    }],
-    isError: false,
-  };
+    return {
+      content: [{
+        type: "text",
+        text: formattedDescription
+      }],
+      isError: false,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{
+        type: "text",
+        text: `Error describing object "${objectName}": ${errorMessage}`
+      }],
+      isError: true,
+    };
+  }
 }

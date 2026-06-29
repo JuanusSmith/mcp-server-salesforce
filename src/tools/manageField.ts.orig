@@ -1,6 +1,5 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { FieldMetadataInfo } from "../types/metadata.js";
-import { escapeSoqlValue, validateIdentifier } from "../utils/sanitize.js";
+import { FieldMetadataInfo } from "../types/metadata";
 
 export const MANAGE_FIELD: Tool = {
   name: "salesforce_manage_field",
@@ -150,7 +149,7 @@ async function grantFieldPermissions(conn: any, objectName: string, fieldName: s
     const profileQuery = await conn.query(`
       SELECT Id, Name 
       FROM Profile 
-      WHERE Name IN (${profileNames.map(name => `'${escapeSoqlValue(name)}'`).join(', ')})
+      WHERE Name IN (${profileNames.map(name => `'${name}'`).join(', ')})
     `);
 
     if (profileQuery.records.length === 0) {
@@ -236,15 +235,6 @@ async function grantFieldPermissions(conn: any, objectName: string, fieldName: s
 export async function handleManageField(conn: any, args: ManageFieldArgs) {
   const { operation, objectName, fieldName, type, grantAccessTo, ...fieldProps } = args;
 
-  const objValidation = validateIdentifier(objectName);
-  if (!objValidation.valid) {
-    return { content: [{ type: "text", text: objValidation.error! }], isError: true };
-  }
-  const fieldValidation = validateIdentifier(fieldName);
-  if (!fieldValidation.valid) {
-    return { content: [{ type: "text", text: fieldValidation.error! }], isError: true };
-  }
-
   try {
     if (operation === 'create') {
       if (!type) {
@@ -272,9 +262,8 @@ export async function handleManageField(conn: any, args: ManageFieldArgs) {
         case 'Lookup':
           if (fieldProps.referenceTo) {
             metadata.referenceTo = fieldProps.referenceTo;
-            // Default relationshipName to fieldName if not provided — omitting it causes a Metadata API error
-            metadata.relationshipName = fieldProps.relationshipName || fieldName;
-            metadata.relationshipLabel = fieldProps.relationshipLabel || fieldProps.relationshipName || fieldName;
+            metadata.relationshipName = fieldProps.relationshipName;
+            metadata.relationshipLabel = fieldProps.relationshipLabel || fieldProps.relationshipName;
             if (type === 'Lookup' && fieldProps.deleteConstraint) {
               metadata.deleteConstraint = fieldProps.deleteConstraint;
             }
@@ -287,22 +276,17 @@ export async function handleManageField(conn: any, args: ManageFieldArgs) {
           metadata.visibleLines = 3;
           break;
 
-        case 'Html':
-          metadata.length = fieldProps.length || 32768;
-          metadata.visibleLines = 10;
-          break;
-
         case 'Text':
-          // Salesforce requires length for Text fields; default to 255 if not provided
-          metadata.length = fieldProps.length || 255;
+          if (fieldProps.length) {
+            metadata.length = fieldProps.length;
+          }
           break;
 
         case 'Number':
-        case 'Currency':
-        case 'Percent':
-          // Salesforce requires precision and scale; default to 18/0 if not provided
-          metadata.precision = fieldProps.precision || 18;
-          metadata.scale = fieldProps.scale ?? 0;
+          if (fieldProps.precision) {
+            metadata.precision = fieldProps.precision;
+            metadata.scale = fieldProps.scale || 0;
+          }
           break;
 
         case 'Picklist':
@@ -331,13 +315,10 @@ export async function handleManageField(conn: any, args: ManageFieldArgs) {
         // Grant Field Level Security (default to System Administrator if not specified)
         const profilesToGrant = grantAccessTo && grantAccessTo.length > 0 ? grantAccessTo : ['System Administrator'];
         
-        // Retry FLS grant with backoff — field may not be immediately available after creation
-        let permissionResult = { success: false, message: 'FLS grant not attempted' };
-        for (let attempt = 0; attempt < 3; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000)); // 1s, 2s, 4s
-          permissionResult = await grantFieldPermissions(conn, objectName, fieldName, profilesToGrant);
-          if (permissionResult.success) break;
-        }
+        // Wait a moment for field to be fully created
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const permissionResult = await grantFieldPermissions(conn, objectName, fieldName, profilesToGrant);
         permissionMessage = `\n${permissionResult.message}`;
         
         return {
@@ -345,7 +326,7 @@ export async function handleManageField(conn: any, args: ManageFieldArgs) {
             type: "text",
             text: `Successfully created custom field ${fieldName}__c on ${objectName}.${permissionMessage}`
           }],
-          isError: !permissionResult.success,
+          isError: false,
         };
       }
     } else {

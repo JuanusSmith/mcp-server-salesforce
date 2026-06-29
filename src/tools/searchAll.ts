@@ -1,4 +1,11 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+  escapeSoslSearchTerm,
+  validateIdentifier,
+  validateQueryFieldToken,
+  validateSafeSoqlFragment,
+  validateSoslWithClauseValue,
+} from "../utils/sanitize.js";
 
 export const SEARCH_ALL: Tool = {
   name: "salesforce_search_all",
@@ -36,7 +43,7 @@ Notes:
 - Use * and ? for wildcards in search terms
 - Each object can have its own WHERE, ORDER BY, and LIMIT clauses
 - Support for WITH clauses: DATA CATEGORY, DIVISION, METADATA, NETWORK, PRICEBOOKID, SNIPPET, SECURITY_ENFORCED
-- "updateable" and "viewable" options control record access filtering`,
+- The updateable/viewable filters are reserved for future support and currently return a clear error if requested`,
   inputSchema: {
     type: "object",
     properties: {
@@ -113,12 +120,12 @@ Notes:
       },
       updateable: {
         type: "boolean",
-        description: "Return only updateable records",
+        description: "Reserved for future support. If set, the tool returns an error instead of generating invalid SOSL.",
         optional: true
       },
       viewable: {
         type: "boolean",
-        description: "Return only viewable records",
+        description: "Reserved for future support. If set, the tool returns an error instead of generating invalid SOSL.",
         optional: true
       }
     },
@@ -150,20 +157,43 @@ export interface SearchAllArgs {
   viewable?: boolean;
 }
 
-function buildWithClause(withClause: WithClause): string {
+function validateAndBuildWithClause(
+  withClause: WithClause,
+): { ok: true; clause: string } | { ok: false; error: string } {
   switch (withClause.type) {
-    case "SNIPPET":
-      return `WITH SNIPPET (${withClause.fields?.join(', ')})`;
+    case "SNIPPET": {
+      if (!withClause.fields?.length) {
+        return {
+          ok: false,
+          error: 'WITH SNIPPET requires a non-empty fields array of valid field API names.',
+        };
+      }
+      for (const f of withClause.fields) {
+        const id = validateIdentifier(f.trim());
+        if (!id.valid) {
+          return { ok: false, error: id.error! };
+        }
+      }
+      return { ok: true, clause: `WITH SNIPPET (${withClause.fields.join(', ')})` };
+    }
     case "DATA CATEGORY":
     case "DIVISION":
     case "NETWORK":
-    case "PRICEBOOKID":
-      return `WITH ${withClause.type} = ${withClause.value}`;
+    case "PRICEBOOKID": {
+      const v = validateSoslWithClauseValue(withClause.value, true);
+      if (!v.valid) {
+        return { ok: false, error: v.error! };
+      }
+      return {
+        ok: true,
+        clause: `WITH ${withClause.type} = ${withClause.value!.trim()}`,
+      };
+    }
     case "METADATA":
     case "SECURITY_ENFORCED":
-      return `WITH ${withClause.type}`;
+      return { ok: true, clause: `WITH ${withClause.type}` };
     default:
-      return '';
+      return { ok: false, error: `Unsupported WITH clause type: ${String((withClause as WithClause).type)}` };
   }
 }
 
@@ -176,7 +206,62 @@ export async function handleSearchAll(conn: any, args: SearchAllArgs) {
       throw new Error('Search term cannot be empty');
     }
 
+    if (updateable || viewable) {
+      return {
+        content: [{
+          type: "text",
+          text: 'The updateable/viewable filters are not currently supported by this tool. Remove those flags and retry the SOSL search.'
+        }],
+        isError: true,
+      };
+    }
+
+    // Validate object names
+    for (const obj of objects) {
+      const objValidation = validateIdentifier(obj.name);
+      if (!objValidation.valid) {
+        return { content: [{ type: "text", text: objValidation.error! }], isError: true };
+      }
+    }
+
+    for (const obj of objects) {
+      for (const field of obj.fields) {
+        const fv = validateQueryFieldToken(field);
+        if (!fv.valid) {
+          return { content: [{ type: "text", text: fv.error! }], isError: true };
+        }
+      }
+    }
+
+    let withClausesStr = '';
+    if (withClauses?.length) {
+      const parts: string[] = [];
+      for (const w of withClauses) {
+        const built = validateAndBuildWithClause(w);
+        if (!built.ok) {
+          return { content: [{ type: "text", text: built.error }], isError: true };
+        }
+        parts.push(built.clause);
+      }
+      withClausesStr = parts.join(' ');
+    }
+
     // Construct the RETURNING clause with object-specific clauses
+    for (const obj of objects) {
+      if (obj.where) {
+        const wv = validateSafeSoqlFragment(obj.where);
+        if (!wv.valid) {
+          return { content: [{ type: "text", text: `Invalid WHERE clause for ${obj.name}: ${wv.error}` }], isError: true };
+        }
+      }
+      if (obj.orderBy) {
+        const ov = validateSafeSoqlFragment(obj.orderBy);
+        if (!ov.valid) {
+          return { content: [{ type: "text", text: `Invalid ORDER BY clause for ${obj.name}: ${ov.error}` }], isError: true };
+        }
+      }
+    }
+
     const returningClause = objects
       .map(obj => {
         let clause = `${obj.name}(${obj.fields.join(',')}`
@@ -190,23 +275,10 @@ export async function handleSearchAll(conn: any, args: SearchAllArgs) {
       })
       .join(', ');
 
-    // Build WITH clauses if present
-    const withClausesStr = withClauses
-      ? withClauses.map(buildWithClause).join(' ')
-      : '';
-
-    // Add updateable/viewable flags if specified
-    const accessFlags = [];
-    if (updateable) accessFlags.push('UPDATEABLE');
-    if (viewable) accessFlags.push('VIEWABLE');
-    const accessClause = accessFlags.length > 0 ? 
-      ` RETURNING ${accessFlags.join(',')}` : '';
-
     // Construct complete SOSL query
-    const soslQuery = `FIND {${searchTerm}} IN ${searchIn} 
+    const soslQuery = `FIND {${escapeSoslSearchTerm(searchTerm)}} IN ${searchIn}
       ${withClausesStr}
-      RETURNING ${returningClause}
-      ${accessClause}`.trim();
+      RETURNING ${returningClause}`.trim();
 
     // Execute search
     const result = await conn.search(soslQuery);

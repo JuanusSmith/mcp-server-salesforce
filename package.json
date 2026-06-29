@@ -1,39 +1,55 @@
 {
-    "name": "@tsmztech/mcp-server-salesforce",
-    "version": "0.0.6",
-    "description": "A Salesforce connector MCP Server.",
+    "name": "@aaron-pienza/mcp-server-salesforce",
+    "version": "1.2.0",
+    "description": "MCP server for Salesforce — query, analytics, Apex, REST API passthrough, and more.",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "type": "module",
     "bin": {
-      "salesforce-connector": "dist/index.js"
+        "mcp-server-salesforce": "dist/index.js"
     },
     "files": [
-      "dist"
+        "dist"
     ],
     "scripts": {
-      "build": "tsc && shx chmod +x dist/*.js",
-      "prepare": "npm run build",
-      "watch": "tsc --watch",
-      "test": "node --test"
+        "build": "tsc && shx chmod +x dist/*.js",
+        "prepare": "npm run build",
+        "watch": "tsc --watch",
+        "test": "node --test"
     },
     "keywords": [
-      "mcp",
-      "salesforce",
-      "claude",
-      "ai"
+        "mcp",
+        "salesforce",
+        "claude",
+        "ai",
+        "model-context-protocol",
+        "jsforce",
+        "soql",
+        "apex",
+        "reports",
+        "dashboards"
     ],
-    "author": "tsmztech",
+    "author": "Aaron Pienza <aaron@inflection.io>",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aaron-pienza/mcp-server-salesforce.git"
+    },
+    "homepage": "https://github.com/aaron-pienza/mcp-server-salesforce#readme",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "dependencies": {
-      "@modelcontextprotocol/sdk": "1.22.0",
-      "dotenv": "16.4.7",
-      "jsforce": "^3.10.3"
+        "@modelcontextprotocol/sdk": "1.26.0",
+        "dotenv": "17.3.1",
+        "jsforce": "^3.10.3"
     },
     "devDependencies": {
-      "@types/node": "^24.3.0",
-      "typescript": "^5.7.2",
-      "shx": "^0.4.0"
+        "@types/node": "25.3.0",
+        "shx": "^0.4.0",
+        "typescript": "^5.7.2"
     }
-  }
-  
+}

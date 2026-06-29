@@ -1,5 +1,6 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
-import type { Connection } from "jsforce";
+import { logApexExecution } from "../utils/logging.js";
+import { isValidSalesforceId } from "../utils/sanitize.js";
 
 export const EXECUTE_ANONYMOUS: Tool = {
   name: "salesforce_execute_anonymous",
@@ -53,6 +54,18 @@ export interface ExecuteAnonymousArgs {
   logLevel?: 'NONE' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'FINE' | 'FINER' | 'FINEST';
 }
 
+async function resolveCurrentUserId(conn: any): Promise<string | undefined> {
+  const directId = conn?.userInfo?.id || conn?.userInfo?.user_id;
+  if (directId) return directId;
+
+  if (typeof conn?.identity === 'function') {
+    const identity = (await conn.identity()) as { user_id?: string; id?: string };
+    return identity.user_id || identity.id;
+  }
+
+  return undefined;
+}
+
 /**
  * Handles executing anonymous Apex code in Salesforce
  * @param conn Active Salesforce connection
@@ -65,8 +78,15 @@ export async function handleExecuteAnonymous(conn: any, args: ExecuteAnonymousAr
     if (!args.apexCode || args.apexCode.trim() === '') {
       throw new Error('apexCode is required and cannot be empty');
     }
-    
-    console.error(`Executing anonymous Apex code`);
+
+    if (args.apexCode.length > 32000) {
+      return {
+        content: [{ type: "text", text: "Apex code exceeds maximum allowed length of 32,000 characters." }],
+        isError: true,
+      };
+    }
+
+    logApexExecution(args.apexCode);
     
     // Set default log level if not provided
     const logLevel = args.logLevel || 'DEBUG';
@@ -100,10 +120,23 @@ export async function handleExecuteAnonymous(conn: any, args: ExecuteAnonymousAr
     // Get debug logs if available
     if (result.compiled) {
       try {
-        // Query for the most recent debug log
+        const currentUserId = await resolveCurrentUserId(conn);
+        if (!currentUserId || !isValidSalesforceId(currentUserId)) {
+          responseText += `\n**Debug Log:** Unable to determine the current Salesforce user, so logs were not retrieved safely.`;
+          return {
+            content: [{
+              type: "text",
+              text: responseText
+            }],
+            isError: !result.success,
+          };
+        }
+
+        // Query for the most recent debug log (user id validated as Salesforce Id — no string interpolation of untrusted input)
         const logs = await conn.query(`
           SELECT Id, LogUserId, Operation, Application, Status, LogLength, LastModifiedDate, Request
           FROM ApexLog 
+          WHERE LogUserId = '${currentUserId}'
           ORDER BY LastModifiedDate DESC 
           LIMIT 1
         `);
@@ -114,7 +147,7 @@ export async function handleExecuteAnonymous(conn: any, args: ExecuteAnonymousAr
           // Retrieve the log body
           const logBody = await conn.tooling.request({
             method: 'GET',
-            url: `${conn.instanceUrl}/services/data/v58.0/tooling/sobjects/ApexLog/${logId}/Body`
+            url: `${conn.instanceUrl}/services/data/v${conn.version || '62.0'}/tooling/sobjects/ApexLog/${logId}/Body`
           });
           
           responseText += `\n**Debug Log:**\n\`\`\`\n${logBody}\n\`\`\``;
@@ -126,11 +159,13 @@ export async function handleExecuteAnonymous(conn: any, args: ExecuteAnonymousAr
       }
     }
     
+    const hasError = !result.compiled || !result.success;
     return {
-      content: [{ 
-        type: "text", 
+      content: [{
+        type: "text",
         text: responseText
-      }]
+      }],
+      isError: hasError,
     };
   } catch (error) {
     console.error('Error executing anonymous Apex:', error);
