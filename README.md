@@ -1,12 +1,9 @@
 # Salesforce MCP Server
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tsmztech/mcp-server-salesforce/badge)](https://securityscorecards.dev/viewer/?uri=github.com/tsmztech/mcp-server-salesforce)
 
+> **Note:** This is a fork of [tsmztech/mcp-server-salesforce](https://github.com/tsmztech/mcp-server-salesforce)
+> with fixes for SOQL injection vulnerabilities and checkbox/field-type handling bugs in the query tools.
 
 An MCP (Model Context Protocol) server implementation that integrates Claude with Salesforce, enabling natural language interactions with your Salesforce data and metadata. This server allows Claude to query, modify, and manage your Salesforce objects and records using everyday language.
-
-<a href="https://glama.ai/mcp/servers/kqeniawbr6">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/kqeniawbr6/badge" alt="Salesforce Server MCP server" />
-</a>
 
 ## Features
 
@@ -22,22 +19,16 @@ An MCP (Model Context Protocol) server implementation that integrates Claude wit
 
 ## Installation
 
-### Global Installation (npm)
+### Building from source (this fork)
 
 ```bash
-npm install -g @tsmztech/mcp-server-salesforce
+git clone https://github.com/JuanusSmith/mcp-server-salesforce.git
+cd mcp-server-salesforce
+npm install
+npm run build
 ```
 
-### Claude Desktop Quick Installation
-
-For easy setup with Claude Desktop, download the pre-configured extension:
-
-1. Download [`salesforce-mcp-extension.dxt`](./claude-desktop/salesforce-mcp-extension.dxt) from the `claude-desktop/` folder
-2. Open Claude Desktop → Settings → Extensions
-3. Drag the `.dxt` file into the Extensions window
-4. Configure your Salesforce credentials when prompted
-
-For manual Claude Desktop configuration, see [Usage with Claude Desktop](#usage-with-claude-desktop) below.
+> This fork isn't published to npm, so `npm install -g` won't get you the patched version — always build from source above. Verify the actual build output path (e.g. `dist/index.js`) matches what's referenced below before using these configs.
 
 ## Tools
 
@@ -175,21 +166,36 @@ You can connect to Salesforce using one of three authentication methods:
 2. Make sure your org is authenticated and accessible via `sf org display --json` in the root of your Salesforce project.
 3. The server will automatically retrieve the access token and instance url using the CLI.
 
+> **Windows Store Claude Desktop:** PATH inheritance issues can break `Salesforce_CLI` auth in that environment.
+> Use `User_Password` auth instead if you're running the Windows Store build.
 
+### Usage with Claude Code
+
+Since Claude Code runs from a terminal, it inherits your system PATH normally, so `SF_CLI`/`Salesforce_CLI` auth works reliably here.
+
+```bash
+claude mcp add salesforce -- node ./dist/index.js \
+  --env SALESFORCE_CONNECTION_TYPE=SF_CLI \
+  --env SALESFORCE_ORG_ALIAS=myorg
+```
+
+Verify the connection:
+```bash
+claude mcp list
+```
+`salesforce` should show as connected. Add `--scope user` instead of the default local scope if you want it available across all projects rather than just the current repo.
 
 ### Usage with Claude Desktop
 
-
 Add to your `claude_desktop_config.json`:
-
 
 #### For Salesforce CLI Authentication:
 ```json
 {
   "mcpServers": {
     "salesforce": {
-      "command": "npx",
-      "args": ["-y", "@tsmztech/mcp-server-salesforce"],
+      "command": "node",
+      "args": ["C:\\path\\to\\mcp-server-salesforce\\dist\\index.js"],
       "env": {
         "SALESFORCE_CONNECTION_TYPE": "Salesforce_CLI"
       }
@@ -203,8 +209,8 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "salesforce": {
-      "command": "npx",
-      "args": ["-y", "@tsmztech/mcp-server-salesforce"],
+      "command": "node",
+      "args": ["C:\\path\\to\\mcp-server-salesforce\\dist\\index.js"],
       "env": {
         "SALESFORCE_CONNECTION_TYPE": "User_Password",
         "SALESFORCE_USERNAME": "your_username",
@@ -222,8 +228,8 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "salesforce": {
-      "command": "npx",
-      "args": ["-y", "@tsmztech/mcp-server-salesforce"],
+      "command": "node",
+      "args": ["C:\\path\\to\\mcp-server-salesforce\\dist\\index.js"],
       "env": {
         "SALESFORCE_CONNECTION_TYPE": "OAuth_2.0_Client_Credentials",
         "SALESFORCE_CLIENT_ID": "your_client_id",
@@ -330,12 +336,21 @@ Examples with Field Level Security:
 "Configure log level to DEBUG for a user"
 ```
 
+## Troubleshooting
+
+| Symptom | Likely fix |
+|---|---|
+| `! Needs authentication` in `claude mcp list` | Re-run `sf org login web`, session likely expired |
+| Server won't start / immediate crash | Re-run `npm run build`, check Node version |
+| Wrong org being queried | Check `sf config get target-org` or your `SALESFORCE_ORG_ALIAS` value |
+| Works in Claude Code but not Desktop (Windows Store) | Use `User_Password` auth, not `Salesforce_CLI` — PATH inheritance issue |
+
 ## Development
 
 ### Building from source
 ```bash
 # Clone the repository
-git clone https://github.com/tsmztech/mcp-server-salesforce.git
+git clone https://github.com/JuanusSmith/mcp-server-salesforce.git
 
 # Navigate to directory
 cd mcp-server-salesforce
@@ -354,4 +369,4 @@ Contributions are welcome! Feel free to submit a Pull Request.
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Issues and Support
-If you encounter any issues or need support, please file an issue on the [GitHub repository](https://github.com/tsmztech/mcp-server-salesforce/issues).
+If you encounter any issues or need support, please file an issue on the [GitHub repository](https://github.com/JuanusSmith/mcp-server-salesforce/issues).
