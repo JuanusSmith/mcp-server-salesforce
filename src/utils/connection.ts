@@ -30,6 +30,21 @@ function resolveSfExecutable(): string {
   return 'sf';
 }
 
+/**
+ * Reads and validates the optional SALESFORCE_API_VERSION environment variable.
+ * jsforce falls back to its internal default when no version is provided, which
+ * can be too old for newer Salesforce objects (e.g. AccountPlan requires 62.0+).
+ * @returns The API version string (e.g. "62.0"), or undefined to use the jsforce default
+ */
+function getApiVersion(): string | undefined {
+  const apiVersion = process.env.SALESFORCE_API_VERSION;
+  if (!apiVersion) return undefined;
+  if (!/^\d+\.\d$/.test(apiVersion)) {
+    throw new Error(`Invalid SALESFORCE_API_VERSION "${apiVersion}". Expected a version like "62.0".`);
+  }
+  return apiVersion;
+}
+
 export async function getSalesforceOrgInfo(
   execSfOrgDisplay: () => Promise<{ stdout: string; stderr: string }> = () =>
     execFileAsync(resolveSfExecutable(), ['org', 'display', '--json'], { shell: process.platform === 'win32' })
@@ -199,6 +214,7 @@ async function createFreshConnection(config?: ConnectionConfig): Promise<Connect
         instanceUrl: tokenResponse.instance_url,
         accessToken: tokenResponse.access_token,
         maxRequest: 10,
+        version: getApiVersion()
       });
 
       return conn;
@@ -216,6 +232,7 @@ async function createFreshConnection(config?: ConnectionConfig): Promise<Connect
       const conn = new jsforce.Connection({
         instanceUrl,
         accessToken,
+        version: getApiVersion()
       });
 
       return conn;
@@ -228,6 +245,7 @@ async function createFreshConnection(config?: ConnectionConfig): Promise<Connect
         instanceUrl: orgInfo.result.instanceUrl,
         accessToken: orgInfo.result.accessToken,
         maxRequest: 10,
+        version: getApiVersion()
       });
 
       console.error(`Connected to Salesforce org: ${orgInfo.result.username} (${orgInfo.result.alias || 'No alias'})`);
@@ -247,6 +265,7 @@ async function createFreshConnection(config?: ConnectionConfig): Promise<Connect
       const conn = new jsforce.Connection({
         loginUrl,
         maxRequest: 10,
+        version: getApiVersion(),
       });
 
       await conn.login(

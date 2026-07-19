@@ -190,6 +190,19 @@ claude mcp list
 ```
 `salesforce` should show as connected. Add `--scope user` instead of the default local scope if you want it available across all projects rather than just the current repo.
 
+### Optional: Salesforce API Version
+
+By default, the server uses the jsforce library's default Salesforce API version, which may be too old for newer standard objects (for example, `AccountPlan` requires API version 62.0+ and fails with `sObject type 'AccountPlan' is not supported`). Set the `SALESFORCE_API_VERSION` environment variable to pin a specific version with any authentication method:
+
+```json
+"env": {
+  "SALESFORCE_CONNECTION_TYPE": "...",
+  "SALESFORCE_API_VERSION": "62.0"
+}
+```
+
+The value must look like `"62.0"` (major version dot minor version).
+
 ### Usage with Claude Desktop
 
 Add to your `claude_desktop_config.json`:
