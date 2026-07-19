@@ -34,7 +34,7 @@ import {
   assertStringArray,
 } from "./utils/validate.js";
 import { SEARCH_OBJECTS, handleSearchObjects, SearchObjectsArgs } from "./tools/search.js";
-import { DESCRIBE_OBJECT, handleDescribeObject } from "./tools/describe.js";
+import { DESCRIBE_OBJECT, handleDescribeObject, DescribeObjectArgs } from "./tools/describe.js";
 import { QUERY_RECORDS, handleQueryRecords, QueryArgs } from "./tools/query.js";
 import { AGGREGATE_QUERY, handleAggregateQuery, AggregateQueryArgs } from "./tools/aggregateQuery.js";
 import { DML_RECORDS, handleDMLRecords, DMLArgs } from "./tools/dml.js";
@@ -138,7 +138,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "salesforce_describe_object": {
         const a = assertPlainObject(args, 'arguments');
-        return await handleDescribeObject(conn, assertString(a.objectName, 'objectName'));
+        const validatedArgs: DescribeObjectArgs = {
+          objectName: assertString(a.objectName, 'objectName'),
+          fields: assertOptionalStringArray(a.fields, 'fields'),
+          forceRefresh: assertOptionalBoolean(a.forceRefresh, 'forceRefresh'),
+        };
+        return await handleDescribeObject(conn, validatedArgs);
       }
 
       case "salesforce_query_records": {

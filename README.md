@@ -3,6 +3,8 @@
 > **Note:** This is a fork of [tsmztech/mcp-server-salesforce](https://github.com/tsmztech/mcp-server-salesforce)
 > with fixes for SOQL injection vulnerabilities and checkbox/field-type handling bugs in the query tools.
 
+**Current version: 1.3.0** — adds describe-result caching, a `fields` filter, and a `forceRefresh` option to `salesforce_describe_object`. See [CHANGELOG.md](./CHANGELOG.md) for full release history.
+
 An MCP (Model Context Protocol) server implementation that integrates Claude with Salesforce, enabling natural language interactions with your Salesforce data and metadata. This server allows Claude to query, modify, and manage your Salesforce objects and records using everyday language.
 
 ## Features
@@ -44,6 +46,9 @@ Get detailed object schema information:
 * Relationship details
 * Picklist values
 * Example: "Show me all fields in the Account object"
+* **Cached for 10 minutes per object** — repeat describes of the same object within that window are served from cache instead of hitting the Salesforce API again. Response text indicates whether a result came from cache or was freshly fetched.
+* **`fields` (optional)**: Return only specific fields instead of the full object schema — useful for large objects like Account or Opportunity where you only need a handful of fields. Example: "Describe Account, just the Rating and Industry fields"
+* **`forceRefresh` (optional)**: Skip the cache and fetch current metadata directly, overwriting any cached copy. Use right after changing schema (e.g., adding a field) mid-session. Example: "Describe Account, force refresh"
 
 ### salesforce_query_records
 Query records with relationship support:
