@@ -2,6 +2,12 @@
 
 All notable changes to this fork are documented here.
 
+## [1.3.1] - 2026-07-20
+
+### Added
+- **`Access_Token` connection type**: Connect directly with a pre-issued Salesforce access token and instance URL (`SALESFORCE_ACCESS_TOKEN` / `SALESFORCE_INSTANCE_URL`), without needing username/password or OAuth client credentials. (cherry-picked from upstream)
+- **`SALESFORCE_API_VERSION` environment variable**: Pin a specific Salesforce API version for any authentication method, avoiding failures on newer standard objects (e.g., `AccountPlan`) that require an API version newer than jsforce's default. (cherry-picked from upstream)
+
 ## [1.3.0] - 2026-07-19
 
 ### Added

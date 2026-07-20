@@ -3,7 +3,7 @@
 > **Note:** This is a fork of [tsmztech/mcp-server-salesforce](https://github.com/tsmztech/mcp-server-salesforce)
 > with fixes for SOQL injection vulnerabilities and checkbox/field-type handling bugs in the query tools.
 
-**Current version: 1.3.0** — adds describe-result caching, a `fields` filter, and a `forceRefresh` option to `salesforce_describe_object`. See [CHANGELOG.md](./CHANGELOG.md) for full release history.
+**Current version: 1.3.1** — adds an `Access_Token` connection type and `SALESFORCE_API_VERSION` support, on top of 1.3.0's describe-result caching, `fields` filter, and `forceRefresh` option for `salesforce_describe_object`. See [CHANGELOG.md](./CHANGELOG.md) for full release history.
 
 An MCP (Model Context Protocol) server implementation that integrates Claude with Salesforce, enabling natural language interactions with your Salesforce data and metadata. This server allows Claude to query, modify, and manage your Salesforce objects and records using everyday language.
 
